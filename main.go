@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type User struct {
@@ -60,6 +61,16 @@ func (u *User) Withdraw(money float64) error {
 	}
 }
 
+func (p *PaymentSystem) Worker(ch <-chan Transaction, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for t := range ch {
+		err := p.ProcessingTransactions(t)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
 func main() {
 	ps := &PaymentSystem{
 		Users: make(map[string]*User),
@@ -83,13 +94,19 @@ func main() {
 	ps.AddTransaction(tx1)
 	ps.AddTransaction(tx2)
 
-	for _, tx := range ps.TransactionQueue {
-		err := ps.ProcessingTransactions(tx)
-		if err != nil {
-			fmt.Println("Ошибка:", err)
-		}
+	ch := make(chan Transaction, len(ps.TransactionQueue))
+	var wg sync.WaitGroup
+
+	for i := 1; i <= 3; i++ {
+		wg.Add(1)
+		go ps.Worker(ch, &wg)
 	}
 
+	for _, tx := range ps.TransactionQueue {
+		ch <- tx
+	}
+	close(ch)
+	wg.Wait()
 	fmt.Println("Итого")
 	fmt.Printf("У первого пользователя должно получиться 850, а получилось: %v\n", ps.Users["1"].Balance)
 	fmt.Printf("У второго пользователя должно получиться 650, а получилось: %v\n", ps.Users["2"].Balance)
