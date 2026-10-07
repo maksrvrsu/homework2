@@ -10,6 +10,7 @@ type User struct {
 	ID      string
 	Name    string
 	Balance float64
+	mu      sync.Mutex
 }
 
 type Transaction struct {
@@ -49,10 +50,16 @@ func (p *PaymentSystem) ProcessingTransactions(t Transaction) error {
 }
 
 func (u *User) Deposit(money float64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
 	u.Balance = u.Balance + money
 }
 
 func (u *User) Withdraw(money float64) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
 	if u.Balance < money {
 		return errors.New("Error: Not enought money on balance")
 	} else {
